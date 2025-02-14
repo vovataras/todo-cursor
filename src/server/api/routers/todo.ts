@@ -3,23 +3,35 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
 import { todos } from "~/server/db/schema";
 import { desc, eq } from "drizzle-orm";
+import type { Todo } from "~/types/todo";
 
 export const todoRouter = createTRPCRouter({
   getAll: publicProcedure.query(async () => {
-    return db.select().from(todos).orderBy(desc(todos.createdAt));
+    const result = await db
+      .select()
+      .from(todos)
+      .orderBy(desc(todos.created_at));
+    return result.map((todo) => ({
+      ...todo,
+      created_at: todo.created_at.toISOString(),
+    })) satisfies Todo[];
   }),
 
   create: publicProcedure
     .input(z.object({ title: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const result = await db
+      const [result] = await db
         .insert(todos)
         .values({
           title: input.title,
           completed: false,
         })
         .returning();
-      return result[0];
+      if (!result) throw new Error("Failed to create todo");
+      return {
+        ...result,
+        created_at: result.created_at.toISOString(),
+      } satisfies Todo;
     }),
 
   update: publicProcedure
@@ -31,7 +43,7 @@ export const todoRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const result = await db
+      const [result] = await db
         .update(todos)
         .set({
           ...(input.completed !== undefined && { completed: input.completed }),
@@ -39,7 +51,11 @@ export const todoRouter = createTRPCRouter({
         })
         .where(eq(todos.id, input.id))
         .returning();
-      return result[0];
+      if (!result) throw new Error("Todo not found");
+      return {
+        ...result,
+        created_at: result.created_at.toISOString(),
+      } satisfies Todo;
     }),
 
   delete: publicProcedure

@@ -3,7 +3,7 @@ export type Todo = {
   title: string;
   completed: boolean;
   created_at: string;
-  user_id: string;
+  user_id: string | null;
 };
 
 export type CreateTodoInput = {

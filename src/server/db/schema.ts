@@ -4,6 +4,6 @@ export const todos = pgTable("todos", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: text("title").notNull(),
   completed: boolean("completed").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  userId: uuid("user_id"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  user_id: uuid("user_id"),
 });
