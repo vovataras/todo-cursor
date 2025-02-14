@@ -1,32 +1,36 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { db } from "~/server/db";
 import { todos } from "~/server/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import type { Todo } from "~/types/todo";
 
 export const todoRouter = createTRPCRouter({
-  getAll: publicProcedure.query(async () => {
+  getAll: protectedProcedure.query(async ({ ctx }) => {
     const result = await db
       .select()
       .from(todos)
+      .where(eq(todos.user_id, ctx.session.user.id))
       .orderBy(desc(todos.created_at));
+
     return result.map((todo) => ({
       ...todo,
       created_at: todo.created_at.toISOString(),
     })) satisfies Todo[];
   }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({ title: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const [result] = await db
         .insert(todos)
         .values({
           title: input.title,
           completed: false,
+          user_id: ctx.session.user.id,
         })
         .returning();
+
       if (!result) throw new Error("Failed to create todo");
       return {
         ...result,
@@ -34,7 +38,7 @@ export const todoRouter = createTRPCRouter({
       } satisfies Todo;
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -42,15 +46,18 @@ export const todoRouter = createTRPCRouter({
         title: z.string().min(1).optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const [result] = await db
         .update(todos)
         .set({
           ...(input.completed !== undefined && { completed: input.completed }),
           ...(input.title !== undefined && { title: input.title }),
         })
-        .where(eq(todos.id, input.id))
+        .where(
+          and(eq(todos.id, input.id), eq(todos.user_id, ctx.session.user.id)),
+        )
         .returning();
+
       if (!result) throw new Error("Todo not found");
       return {
         ...result,
@@ -58,10 +65,14 @@ export const todoRouter = createTRPCRouter({
       } satisfies Todo;
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ input }) => {
-      await db.delete(todos).where(eq(todos.id, input.id));
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .delete(todos)
+        .where(
+          and(eq(todos.id, input.id), eq(todos.user_id, ctx.session.user.id)),
+        );
       return { success: true } as const;
     }),
 });

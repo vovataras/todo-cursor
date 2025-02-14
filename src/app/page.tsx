@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "~/trpc/react";
 import { TodoItem } from "~/components/TodoItem";
 import type { Todo } from "~/types/todo";
+import { useRouter } from "next/navigation";
+import { supabase } from "~/lib/supabase";
 
 export default function Home() {
   const [newTodo, setNewTodo] = useState("");
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const utils = api.useUtils();
+  const router = useRouter();
 
   const {
     data: todos = [],
@@ -17,7 +21,25 @@ export default function Home() {
     initialData: undefined,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    enabled: !isSigningOut,
+    retry: 1,
+    retryDelay: 500,
   });
+
+  // Listen for auth changes and invalidate queries
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === "SIGNED_IN") {
+        await utils.invalidate();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [utils]);
 
   const createTodo = api.todo.create.useMutation({
     onMutate: async (newTodoData) => {
@@ -94,7 +116,7 @@ export default function Home() {
     setNewTodo("");
   };
 
-  if (isLoading || (isFetching && !todos.length)) {
+  if (isLoading || (isFetching && !todos.length) || isSigningOut) {
     return (
       <main className="min-h-screen bg-yellow-100 p-8">
         <div className="mx-auto max-w-2xl">
@@ -104,6 +126,9 @@ export default function Home() {
           <div className="flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-500 border-t-transparent"></div>
           </div>
+          {isSigningOut && (
+            <p className="mt-4 text-center text-gray-600">Signing out...</p>
+          )}
         </div>
       </main>
     );
@@ -112,7 +137,26 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-yellow-100 p-8">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-8 text-center text-4xl font-bold">✨ Todo App ✨</h1>
+        <div className="mb-8 flex items-center justify-between">
+          <h1 className="text-4xl font-bold">✨ Todo App ✨</h1>
+          <button
+            onClick={async () => {
+              try {
+                setIsSigningOut(true);
+                await utils.invalidate();
+                await supabase.auth.signOut();
+                router.push("/sign-in");
+              } catch (error) {
+                console.error("Error signing out:", error);
+                setIsSigningOut(false);
+              }
+            }}
+            disabled={isSigningOut}
+            className="rounded-lg border-2 border-black bg-red-500 px-4 py-2 font-bold text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50"
+          >
+            {isSigningOut ? "Signing Out..." : "Sign Out"}
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="mb-8">
           <div className="flex gap-4">
