@@ -34,12 +34,30 @@ export default function Home() {
       if (event === "SIGNED_IN") {
         await utils.invalidate();
       }
+      if (event === "SIGNED_OUT") {
+        // Clear cache and redirect
+        await utils.invalidate();
+        window.location.replace("/sign-in");
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
   }, [utils]);
+
+  // Check auth status on mount
+  useEffect(() => {
+    async function checkAuth() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.replace("/sign-in");
+      }
+    }
+    void checkAuth();
+  }, []);
 
   const createTodo = api.todo.create.useMutation({
     onMutate: async (newTodoData) => {
@@ -143,9 +161,11 @@ export default function Home() {
             onClick={async () => {
               try {
                 setIsSigningOut(true);
+                // Clear cache first
                 await utils.invalidate();
+                // Sign out
                 await supabase.auth.signOut();
-                router.push("/sign-in");
+                // Let the auth state change handler handle the redirect
               } catch (error) {
                 console.error("Error signing out:", error);
                 setIsSigningOut(false);
