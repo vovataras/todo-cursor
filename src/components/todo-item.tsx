@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Todo } from "~/types/todo";
-import { Confetti } from "./Confetti";
+import { Confetti } from "./confetti-effect";
 
 interface TodoItemProps {
   todo: Todo;

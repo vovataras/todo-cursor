@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "~/trpc/react";
-import { TodoItem } from "~/components/TodoItem";
+import { TodoItem } from "~/components/todo-item";
 import type { Todo } from "~/types/todo";
 import { useRouter } from "next/navigation";
 import { supabase } from "~/lib/supabase";
